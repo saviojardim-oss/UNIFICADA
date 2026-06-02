@@ -3,22 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consulta Unificada de Contribuintes e Empresas</title>
+    <title>Consulta Unificada</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f8f9fa; margin: 0; padding: 20px 15px; color: #333; }
         .container { max-width: 100%; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h1 { color: #1e3a8a; margin-top: 0; font-size: 24px; text-align: center; margin-bottom: 20px; }
+        h1 { color: #1e3a8a; margin-top: 0; font-size: 24px; text-align: center; margin-bottom: 25px; }
         
-        /* Painel de Filtros Avançados */
-        .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; background: #f1f5f9; padding: 15px; border-radius: 8px; }
-        .grupo-filtro { display: flex; flex-direction: column; }
-        .grupo-filtro label { font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
-        .filtro-input { padding: 8px 12px; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; transition: all 0.2s; }
-        .filtro-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        /* Painel de Busca Unificada */
+        .busca-container { max-width: 500px; margin: 0 auto 20px auto; display: flex; flex-direction: column; }
+        .busca-container label { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 6px; text-align: center; }
+        .busca-input { padding: 12px 16px; font-size: 16px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; transition: all 0.2s; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .busca-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
         
         .contador { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 15px; font-weight: 500; }
 
         /* Tabela Estruturada com Rolagem Horizontal */
-        .table-responsive { overflow-x: auto; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 8
+        .table-responsive { overflow-x: auto; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 8px; max-height: 600px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th { background-color: #1e3a8a; color: white; padding: 12px 10px; font-weight: 600; position: sticky; top: 0; z-index: 10; white-space: nowrap; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; color: #475569; white-space: nowrap; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        tr:hover { background-color: #f1f5f9; }
+
+        .sem-resultados { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
+        .carregando { text-align: center; padding: 20px; color: #3b82f6; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📋 Painel de Consulta Unificada</h1>
+    
+    <div class="busca-container">
+        <label for="busca-geral">Busca</label>
+        <input type="text" id="busca-geral" class="busca-input" placeholder="Digite nome, CPF/CNPJ, inscrição, bairro..." disabled>
+    </div>
+    
+    <div id="contador-resultados" class="contador"></div>
+
+    <div class="table-responsive">
+        <table id="tabela-resultados">
+            <thead>
+                <tr>
+                    <th>Origem (Tabela)</th>
+                    <th>Nome / Razão Social</th>
+                    <th>Nome Fantasia</th>
+                    <th>CPF / CNPJ</th>
+                    <th>Situação</th>
+                    <th>Inscrição Municipal</th>
+                    <th>Logradouro (Endereço)</th>
+                    <th>Nº</th>
+                    <th>Complemento</th>
+                    <th>CEP</th>
+                    <th>Bairro</th>
+                    <th>Cidade</th>
+                    <th>Estado</th>
+                    <th>Tipo Lançamento</th>
+                    <th>Tipo Empresa</th>
+                    <th>CRC</th>
+                    <th>Estabelecido</th>
+                    <th>Início Atividade</th>
+                    <th>Capital Social</th>
+                    <th>Área Ocupada</th>
+                    <th>RG / Inscr. Estadual</th>
+                    <th>Tipo Pessoa</th>
+                    <th>Tipo ISS</th>
+                    <th>Atividade Livre</th>
+                    <th>Data Encerramento</th>
+                    <th>Endereço Entrega</th>
+                    <th>Bairro Entrega</th>
+                    <th>Cidade Entrega</th>
+                    <th>Estado Entrega</th>
+                    <th>CEP Entrega</th>
+                </tr>
+            </thead>
+            <tbody id="corpo-tabela">
+                </tbody>
+        </table>
+    </div>
+
+    <div id="status-mensagem" class="carregando">Buscando e unificando arquivos de dados...</div>
+</div>
+
+<script>
+    let dadosContribuientes = [];
+
+    // Função auxiliar para carregar um arquivo CSV individual e marcar sua origem
+    function carregarCSV(nomeArquivo, identificadorOrigem) {
+        return new Promise((resolve, reject) => {
+            Papa.parse(nomeArquivo, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                delimiter: ";",
+                complete: function(results) {
+                    const dadosComOrigem = results.data.map(item => {
+                        item['_origem_tabela'] = identificadorOrigem;
+                        return item;
+                    });
+                    resolve(dadosComOrigem);
+                },
+                error: function(err) {
+                    console.error("Erro ao ler " + nomeArquivo, err);
+                    resolve([]);
+                }
+            });
+        });
+    }
+
+    // Carrega os 3 arquivos simultaneamente de forma inteligente
+    Promise.all([
+        carregarCSV('dados1.csv', 'Dados 1'),
+        carregarCSV('dados2.csv', 'Dados 2'),
+        carregarCSV('dados3.csv', 'Dados 3')
+    ]).then(resultados => {
+        // Une todas as listas em uma matriz única na memória
+        dadosContribuientes = [].concat(...resultados);
+
+        if (dadosContribuientes.length === 0) {
+            document.getElementById('status-mensagem').innerText = "Nenhum dado foi encontrado. Verifique os arquivos dados1.csv, dados2.csv e dados3.csv.";
+            document.getElementById('status-mensagem').style.color = 'red';
+            return;
+        }
+        
+        // Habilita o campo de busca e esconde o aviso de carregamento
+        document.getElementById('busca-geral').disabled = false;
+        document.getElementById('status-mensagem').style.display = 'none';
+        
+        // Renderiza tudo inicialmente
+        exibirDados(dadosContribuientes);
+    }).catch(err => {
+        console.error("Erro geral na unificação das tabelas:", err);
+        document.getElementById('status-mensagem').innerText = "Erro crítico ao processar tabelas.";
+        document.getElementById('status-mensagem').style.color = 'red';
+    });
+
+    // Renderizar linhas na tabela
+    function exibirDados(lista) {
+        const corpoTabela = document.getElementById('corpo-tabela');
+        const contador = document.getElementById('contador-resultados');
+        corpoTabela.innerHTML = "";
+        
+        contador.innerText = `${lista.length} registro(s) encontrado(s).`;
+
+        if (lista.length === 0) {
+            corpoTabela.innerHTML = `<tr><td colspan="30" class="sem-resultados">Nenhum registro correspondente à busca.</td></tr>`;
+            return;
+        }
+
+        lista.forEach(item => {
+            const tr = document.createElement('tr');
+            const pegarValor = (campo) => item[campo.toLowerCase()] || item[campo.toUpperCase()] || '-';
+
+            tr.innerHTML = `
+                <td><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">${item['_origem_tabela']}</span></td>
+                <td><b>${pegarValor('nome')}</b></td>
+                <td>${pegarValor('nomefantasia')}</td>
+                <td>${pegarValor('cgccpf')}</td>
+                <td>${pegarValor('situacao')}</td>
+                <td>${pegarValor('inscrmunicipal')}</td>
+                <td>${pegarValor('endereco')}</td>
+                <td>${pegarValor('numero')}</td>
+                <td>${pegarValor('complemento')}</td>
+                <td>${pegarValor('cep')}</td>
+                <td>${pegarValor('bairro')}</td>
+                <td>${pegarValor('cidade')}</td>
+                <td>${pegarValor('estado')}</td>
+                <td>${pegarValor('tplancamento')}</td>
+                <td>${pegarValor('tpempresa')}</td>
+                <td>${pegarValor('crc')}</td>
+                <td>${pegarValor('estabelecido')}</td>
+                <td>${pegarValor('dtinicioatividade')}</td>
+                <td>${pegarValor('capitalsocial')}</td>
+                <td>${pegarValor('areaocupada')}</td>
+                <td>${pegarValor('rginscrestadual')}</td>
+                <td>${pegarValor('tppessoa')}</td>
+                <td>${pegarValor('tpiss')}</td>
+                <td>${pegarValor('atividadelivre')}</td>
+                <td>${pegarValor('dtencerramento')}</td>
+                <td>${pegarValor('entregaendereco')}</td>
+                <td>${pegarValor('entregabairro')}</td>
+                <td>${pegarValor('entregacidade')}</td>
+                <td>${pegarValor('entregaestado')}</td>
+                <td>${pegarValor('entregacep')}</td>
+            `;
+            corpoTabela.appendChild(tr);
+        });
+    }
+
+    // Filtro global unificado de alta performance
+    function executarBuscaGeral() {
+        const termoBusca = document.getElementById('busca-geral').value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        if (!termoBusca) {
+            exibirDados(dadosContribuientes);
+            return;
+        }
+
+        const filtrados = dadosContribuientes.filter(item => {
+            // Vasculha todos os valores do registro para ver se encontra o termo digitado
+            return Object.keys(item).some(chave => {
+                if (chave === '_origem_tabela') return false; // Ignora o nome da tabela interna na busca
+                const valorCampo = String(item[chave] || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return valorCampo.includes(termoBusca);
+            });
+        });
+
+        exibirDados(filtrados);
+    }
+
+    // Evento que escuta a digitação no campo de busca único
+    document.getElementById('busca-geral').addEventListener('input', executarBuscaGeral);
+</script>
+
+</body>
+</html>
