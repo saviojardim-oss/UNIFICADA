@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consulta Unificada</title>
+    <title>Consulta de Contribuintes e Empresas</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -34,14 +34,14 @@
 <body>
 
 <div class="container">
-    <h1>📋 Painel de Consulta Unificada</h1>
+    <h1>📋 Painel de Consulta de Contribuintes</h1>
     
     <div class="busca-container">
         <label for="busca-geral">Busca</label>
-        <input type="text" id="busca-geral" class="busca-input" placeholder="Digite nome, CPF/CNPJ, inscrição, bairro..." disabled>
+        <input type="text" id="busca-geral" class="busca-input" placeholder="Digite para iniciar a pesquisa..." disabled>
     </div>
     
-    <div id="contador-resultados" class="contador"></div>
+    <div id="contador-resultados" class="contador">Aguardando termo de busca...</div>
 
     <div class="table-responsive">
         <table id="tabela-resultados">
@@ -80,11 +80,12 @@
                 </tr>
             </thead>
             <tbody id="corpo-tabela">
-                </tbody>
+                <tr><td colspan="30" class="sem-resultados">Digite algo no campo de busca para exibir os resultados.</td></tr>
+            </tbody>
         </table>
     </div>
 
-    <div id="status-mensagem" class="carregando">Buscando e unificando arquivos de dados...</div>
+    <div id="status-mensagem" class="carregando">Carregando base de dados...</div>
 </div>
 
 <script>
@@ -113,13 +114,12 @@
         });
     }
 
-    // Carrega os 3 arquivos simultaneamente de forma inteligente
+    // Carrega os 3 arquivos simultaneamente em memória
     Promise.all([
         carregarCSV('dados1.csv', 'Dados 1'),
         carregarCSV('dados2.csv', 'Dados 2'),
         carregarCSV('dados3.csv', 'Dados 3')
     ]).then(resultados => {
-        // Une todas as listas em uma matriz única na memória
         dadosContribuientes = [].concat(...resultados);
 
         if (dadosContribuientes.length === 0) {
@@ -128,12 +128,9 @@
             return;
         }
         
-        // Habilita o campo de busca e esconde o aviso de carregamento
+        // Habilita a busca e remove a mensagem de carregamento inicial
         document.getElementById('busca-geral').disabled = false;
         document.getElementById('status-mensagem').style.display = 'none';
-        
-        // Renderiza tudo inicialmente
-        exibirDados(dadosContribuientes);
     }).catch(err => {
         console.error("Erro geral na unificação das tabelas:", err);
         document.getElementById('status-mensagem').innerText = "Erro crítico ao processar tabelas.";
@@ -141,11 +138,17 @@
     });
 
     // Renderizar linhas na tabela
-    function exibirDados(lista) {
+    function exibirDados(lista, buscaAtiva) {
         const corpoTabela = document.getElementById('corpo-tabela');
         const contador = document.getElementById('contador-resultados');
         corpoTabela.innerHTML = "";
         
+        if (!buscaAtiva) {
+            contador.innerText = "Aguardando termo de busca...";
+            corpoTabela.innerHTML = `<tr><td colspan="30" class="sem-resultados">Digite algo no campo de busca para exibir os resultados.</td></tr>`;
+            return;
+        }
+
         contador.innerText = `${lista.length} registro(s) encontrado(s).`;
 
         if (lista.length === 0) {
@@ -193,30 +196,14 @@
         });
     }
 
-    // Filtro global unificado de alta performance
+    // Filtro global em tempo real
     function executarBuscaGeral() {
         const termoBusca = document.getElementById('busca-geral').value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-        if (!termoBusca) {
-            exibirDados(dadosContribuientes);
+        // Se o campo estiver limpo, deixa a tabela vazia por performance
+        if (!termoBusca.trim()) {
+            exibirDados([], false);
             return;
         }
 
-        const filtrados = dadosContribuientes.filter(item => {
-            // Vasculha todos os valores do registro para ver se encontra o termo digitado
-            return Object.keys(item).some(chave => {
-                if (chave === '_origem_tabela') return false; // Ignora o nome da tabela interna na busca
-                const valorCampo = String(item[chave] || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                return valorCampo.includes(termoBusca);
-            });
-        });
-
-        exibirDados(filtrados);
-    }
-
-    // Evento que escuta a digitação no campo de busca único
-    document.getElementById('busca-geral').addEventListener('input', executarBuscaGeral);
-</script>
-
-</body>
-</html>
+        const filtrados = dadosCont
